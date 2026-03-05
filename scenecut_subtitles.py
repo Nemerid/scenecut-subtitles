@@ -139,7 +139,7 @@ async def handle_client(ws):
 async def run_server():
     if _gui_ref:
         _gui_ref.set_sc_status("idle", "En attente de Scene Cut…")
-    async with websockets.serve(handle_client, "127.0.0.1", WS_PORT):
+    async with websockets.serve(handle_client, None, WS_PORT):
         await asyncio.Future()
 
 
