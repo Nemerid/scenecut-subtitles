@@ -136,14 +136,21 @@ async def handle_client(ws):
                 _gui_ref.set_vlc_status("idle", "—")
 
 
+_current_loop  = None
+_stop_event    = None   # asyncio.Event — signale l'arrêt propre du serveur
+
+
 async def run_server():
+    global _stop_event
+    _stop_event = asyncio.Event()
     if _gui_ref:
         _gui_ref.set_sc_status("idle", "En attente de Scene Cut…")
-    async with websockets.serve(handle_client, None, WS_PORT):
-        await asyncio.Future()
-
-
-_current_loop = None
+    try:
+        async with websockets.serve(handle_client, None, WS_PORT):
+            await _stop_event.wait()   # attend le signal d'arrêt
+    except OSError:
+        if _gui_ref:
+            _gui_ref.set_sc_status("error", f"Port {WS_PORT} occupé — cliquer Relancer")
 
 
 def start_asyncio_loop():
@@ -151,22 +158,23 @@ def start_asyncio_loop():
     loop = asyncio.new_event_loop()
     _current_loop = loop
     asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(run_server())
-    except Exception as e:
-        if _gui_ref:
-            _gui_ref.set_sc_status("error", f"Port {WS_PORT} occupé — cliquer Relancer")
+    loop.run_until_complete(run_server())
 
 
 def restart_server():
-    global _current_loop
-    if _current_loop and _current_loop.is_running():
-        _current_loop.call_soon_threadsafe(_current_loop.stop)
+    global _current_loop, _stop_event
     if _gui_ref:
         _gui_ref.set_sc_status("idle", "Redémarrage…")
         _gui_ref.set_vlc_status("idle", "—")
-    t = threading.Thread(target=start_asyncio_loop, daemon=True)
-    t.start()
+    # Signaler l'arrêt propre — le async with se ferme et libère le port
+    if _current_loop and _stop_event and _current_loop.is_running():
+        _current_loop.call_soon_threadsafe(_stop_event.set)
+        # Lancer le nouveau serveur après que le port soit libéré
+        threading.Timer(0.6, lambda: threading.Thread(
+            target=start_asyncio_loop, daemon=True
+        ).start()).start()
+    else:
+        threading.Thread(target=start_asyncio_loop, daemon=True).start()
 
 
 # ── Interface graphique ──────────────────────────────────────────────────────
