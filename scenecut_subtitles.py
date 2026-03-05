@@ -115,11 +115,15 @@ async def handle_client(ws):
                     elif msg.get("type") == "transport":
                         action = msg.get("action")
                         if action == "play_pause":
+                            print(f"  → play_pause", flush=True)
                             await vlc_request(session, "?command=pl_pause")
                         elif action == "seek_rel":
                             delta_s = float(msg.get("delta_ms", 0)) / 1000
-                            sign = "%2B" if delta_s >= 0 else "-"
-                            await vlc_request(session, f"?command=seek&val={sign}{abs(delta_s):.3f}")
+                            sign = "+" if delta_s >= 0 else "-"
+                            url_part = f"?command=seek&val={sign}{abs(delta_s):.3f}s"
+                            print(f"  → seek_rel {delta_s:.3f}s → {url_part}", flush=True)
+                            result = await vlc_request(session, url_part)
+                            print(f"  ← state={result.get('state')} time={result.get('time'):.1f}", flush=True)
                         elif action == "frame_step":
                             await vlc_request(session, "?command=frame")
 
@@ -129,8 +133,10 @@ async def handle_client(ws):
                             f.write(srt)
                         await reload_with_subtitle(session)
 
-                except Exception:
-                    pass
+                except Exception as e:
+                    import traceback
+                    print(f"  ⚠ Exception: {e}", flush=True)
+                    traceback.print_exc()
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
