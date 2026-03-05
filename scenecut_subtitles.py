@@ -139,18 +139,34 @@ async def handle_client(ws):
 async def run_server():
     if _gui_ref:
         _gui_ref.set_sc_status("idle", "En attente de Scene Cut…")
-    async with websockets.serve(handle_client, "localhost", WS_PORT):
+    async with websockets.serve(handle_client, "127.0.0.1", WS_PORT):
         await asyncio.Future()
 
 
+_current_loop = None
+
+
 def start_asyncio_loop():
+    global _current_loop
     loop = asyncio.new_event_loop()
+    _current_loop = loop
     asyncio.set_event_loop(loop)
     try:
         loop.run_until_complete(run_server())
     except Exception as e:
         if _gui_ref:
-            _gui_ref.set_sc_status("error", f"Erreur : {e}")
+            _gui_ref.set_sc_status("error", f"Port {WS_PORT} occupé — cliquer Relancer")
+
+
+def restart_server():
+    global _current_loop
+    if _current_loop and _current_loop.is_running():
+        _current_loop.call_soon_threadsafe(_current_loop.stop)
+    if _gui_ref:
+        _gui_ref.set_sc_status("idle", "Redémarrage…")
+        _gui_ref.set_vlc_status("idle", "—")
+    t = threading.Thread(target=start_asyncio_loop, daemon=True)
+    t.start()
 
 
 # ── Interface graphique ──────────────────────────────────────────────────────
@@ -255,19 +271,22 @@ class BridgeGUI:
                  font=("Helvetica", 9), justify="left", anchor="w",
                  wraplength=340).pack(fill="x", pady=(4, 0))
 
-        # Bouton quitter — tk.Label pour forcer les couleurs (tk.Button ignore bg sur macOS)
+        # Boutons — tk.Label pour forcer les couleurs (tk.Button ignore bg sur macOS)
         btn_frame = tk.Frame(r, bg=DARK_BG)
         btn_frame.pack(side="bottom", pady=16)
 
-        quit_btn = tk.Label(
-            btn_frame, text="  Quitter  ",
-            bg=VIOLET, fg="white", font=("Helvetica", 10, "bold"),
-            padx=20, pady=7, cursor="hand2",
-        )
-        quit_btn.pack()
-        quit_btn.bind("<Button-1>", lambda e: self.root.destroy())
-        quit_btn.bind("<Enter>",    lambda e: quit_btn.configure(bg="#7c3aed"))
-        quit_btn.bind("<Leave>",    lambda e: quit_btn.configure(bg=VIOLET))
+        def make_btn(parent, text, bg, hover_bg, command):
+            lbl = tk.Label(parent, text=text, bg=bg, fg="white",
+                           font=("Helvetica", 10, "bold"),
+                           padx=18, pady=7, cursor="hand2")
+            lbl.pack(side="left", padx=6)
+            lbl.bind("<Button-1>", lambda e: command())
+            lbl.bind("<Enter>",    lambda e: lbl.configure(bg=hover_bg))
+            lbl.bind("<Leave>",    lambda e: lbl.configure(bg=bg))
+            return lbl
+
+        make_btn(btn_frame, "  Relancer  ", "#334155", "#475569", restart_server)
+        make_btn(btn_frame, "  Quitter  ",  VIOLET,    "#7c3aed",  self.root.destroy)
 
     def set_vlc_status(self, status: str, text: str):
         color = STATUS_COLORS.get(status, IDLE_COLOR)
