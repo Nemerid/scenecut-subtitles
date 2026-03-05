@@ -54,14 +54,16 @@ async def vlc_request(session, path=""):
 
 
 async def poll_loop(ws, session):
-    last_ms = -1
+    last_ms    = -1
+    last_state = None
     while True:
         try:
             data    = await vlc_request(session)
             time_ms = round(data.get("time", 0) * 1000)
             state   = data.get("state", "stopped")
-            if time_ms != last_ms:
-                last_ms = time_ms
+            if time_ms != last_ms or state != last_state:
+                last_ms    = time_ms
+                last_state = state
                 await ws.send(json.dumps({
                     "type": "timeupdate", "ms": time_ms, "state": state,
                 }))
