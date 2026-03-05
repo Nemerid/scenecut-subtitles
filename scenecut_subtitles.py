@@ -261,9 +261,9 @@ class BridgeGUI:
 
         quit_btn = tk.Button(
             btn_frame, text="  Quitter  ", command=self.root.destroy,
-            bg=RED, fg="white", font=("Helvetica", 11, "bold"),
-            relief="flat", padx=24, pady=8, cursor="hand2",
-            activebackground="#dc2626", activeforeground="white",
+            bg=VIOLET, fg="white", font=("Helvetica", 10, "bold"),
+            relief="flat", padx=20, pady=7, cursor="hand2",
+            activebackground="#7c3aed", activeforeground="white",
             borderwidth=0,
         )
         quit_btn.pack()
