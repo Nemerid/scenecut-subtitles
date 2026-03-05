@@ -31,7 +31,7 @@ VLC_HOST     = "http://localhost:8080"
 VLC_PASSWORD = "scenecut"
 WS_PORT      = 8765
 POLL_MS      = 40
-VERSION      = "1.1"
+VERSION      = "1.3"
 
 SUBTITLE_FILE = os.path.join(tempfile.gettempdir(), "scenecut_sub.srt")
 
@@ -115,15 +115,11 @@ async def handle_client(ws):
                     elif msg.get("type") == "transport":
                         action = msg.get("action")
                         if action == "play_pause":
-                            print(f"  → play_pause", flush=True)
                             await vlc_request(session, "?command=pl_pause")
                         elif action == "seek_rel":
                             delta_s = float(msg.get("delta_ms", 0)) / 1000
                             sign = "+" if delta_s >= 0 else "-"
-                            url_part = f"?command=seek&val={sign}{abs(delta_s):.3f}s"
-                            print(f"  → seek_rel {delta_s:.3f}s → {url_part}", flush=True)
-                            result = await vlc_request(session, url_part)
-                            print(f"  ← state={result.get('state')} time={result.get('time'):.1f}", flush=True)
+                            await vlc_request(session, f"?command=seek&val={sign}{abs(delta_s):.3f}s")
                         elif action == "frame_step":
                             await vlc_request(session, "?command=frame")
 
@@ -133,10 +129,8 @@ async def handle_client(ws):
                             f.write(srt)
                         await reload_with_subtitle(session)
 
-                except Exception as e:
-                    import traceback
-                    print(f"  ⚠ Exception: {e}", flush=True)
-                    traceback.print_exc()
+                except Exception:
+                    pass
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
