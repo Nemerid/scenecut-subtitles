@@ -1,0 +1,109 @@
+name: Build Scene Cut Subtitles
+
+# Déclenché par :
+# - un tag  v*  (ex: v1.0, v1.1) → crée une Release GitHub avec les binaires
+# - ou manuellement via l'onglet Actions → "Run workflow"
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (ex: 1.1)'
+        required: false
+        default: 'dev'
+
+jobs:
+  build:
+    name: Build — ${{ matrix.os_label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            os_label: macOS
+            artifact_name: Scene_Cut_Subtitles_macOS.zip
+          - os: windows-latest
+            os_label: Windows
+            artifact_name: Scene_Cut_Subtitles_Windows.zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install --upgrade pyinstaller websockets aiohttp
+
+      - name: Build — macOS
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller scenecut_subtitles.spec --clean --noconfirm
+          cd dist
+          zip -r --quiet "../${{ matrix.artifact_name }}" "Scene Cut Subtitles.app"
+
+      - name: Build — Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pyinstaller scenecut_subtitles.spec --clean --noconfirm
+          Compress-Archive -Path "dist\Scene Cut Subtitles.exe" `
+            -DestinationPath "${{ matrix.artifact_name }}" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+          retention-days: 90
+
+  release:
+    name: Créer la Release GitHub
+    needs: build
+    runs-on: ubuntu-latest
+    # Seulement pour les tags v*
+    if: startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Télécharger les binaires buildés
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Créer la Release avec les binaires
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Scene Cut Subtitles ${{ github.ref_name }}
+          body: |
+            ## Installation
+
+            | Système | Fichier |
+            |---|---|
+            | macOS | `Scene_Cut_Subtitles_macOS.zip` |
+            | Windows | `Scene_Cut_Subtitles_Windows.zip` |
+
+            **macOS** : extraire le zip, glisser l'app dans `/Applications`.
+            Au premier lancement : clic droit → Ouvrir → confirmer.
+
+            **Windows** : extraire le zip, double-cliquer sur l'`.exe`.
+            Si Windows Defender bloque : "Informations complémentaires" → "Exécuter quand même".
+
+            ---
+            **Configuration VLC requise (une seule fois) :**
+            Préférences → Tout afficher → Interface → Interfaces principales → cocher **Web**
+            → Lua HTTP → Mot de passe : `scenecut` → Enregistrer → Relancer VLC.
+          files: |
+            Scene_Cut_Subtitles_macOS.zip
+            Scene_Cut_Subtitles_Windows.zip
+          draft: false
+          prerelease: false
