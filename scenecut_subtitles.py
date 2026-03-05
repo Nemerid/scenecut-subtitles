@@ -31,7 +31,7 @@ VLC_HOST     = "http://localhost:8080"
 VLC_PASSWORD = "scenecut"
 WS_PORT      = 8765
 POLL_MS      = 40
-VERSION      = "1.0"
+VERSION      = "1.1"
 
 SUBTITLE_FILE = os.path.join(tempfile.gettempdir(), "scenecut_sub.srt")
 
@@ -85,7 +85,7 @@ async def reload_with_subtitle(session):
         await asyncio.sleep(0.7)
         await vlc_request(session, "?command=pl_pause")
         await asyncio.sleep(0.1)
-        await vlc_request(session, f"?command=seek&val={int(saved_time)}s")
+        await vlc_request(session, f"?command=seek&val={int(saved_time)}")
         await asyncio.sleep(0.15)
 
     encoded = urllib.parse.quote(SUBTITLE_FILE, safe="/")
@@ -106,7 +106,9 @@ async def handle_client(ws):
 
                     if msg.get("type") == "seek":
                         ms = float(msg["ms"])
-                        await vlc_request(session, f"?command=seek&val={ms / 1000:.3f}s")
+                        val = int(ms / 1000)
+                        print(f"  → Seek : ms={ms}  val={val}", flush=True)
+                        await vlc_request(session, f"?command=seek&val={val}")
 
                     elif msg.get("type") == "transport":
                         action = msg.get("action")
@@ -114,8 +116,8 @@ async def handle_client(ws):
                             await vlc_request(session, "?command=pl_pause")
                         elif action == "seek_rel":
                             delta_s = float(msg.get("delta_ms", 0)) / 1000
-                            sign = "%2B" if delta_s >= 0 else ""
-                            await vlc_request(session, f"?command=seek&val={sign}{abs(delta_s):.3f}s")
+                            sign = "%2B" if delta_s >= 0 else "-"
+                            await vlc_request(session, f"?command=seek&val={sign}{abs(delta_s):.3f}")
                         elif action == "frame_step":
                             await vlc_request(session, "?command=frame")
 
@@ -210,12 +212,6 @@ class BridgeGUI:
         r.configure(bg=DARK_BG)
         r.resizable(False, False)
 
-        # Centrer la fenêtre
-        w, h = 380, 320
-        sw = r.winfo_screenwidth()
-        sh = r.winfo_screenheight()
-        r.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
-
         # Titre
         title_frame = tk.Frame(r, bg=VIOLET, height=52)
         title_frame.pack(fill="x")
@@ -281,7 +277,7 @@ class BridgeGUI:
 
         # Boutons — tk.Label pour forcer les couleurs (tk.Button ignore bg sur macOS)
         btn_frame = tk.Frame(r, bg=DARK_BG)
-        btn_frame.pack(side="bottom", pady=16)
+        btn_frame.pack(pady=16)
 
         def make_btn(parent, text, bg, hover_bg, command):
             lbl = tk.Label(parent, text=text, bg=bg, fg="white",
@@ -295,6 +291,14 @@ class BridgeGUI:
 
         make_btn(btn_frame, "  Relancer  ", "#334155", "#475569", restart_server)
         make_btn(btn_frame, "  Quitter  ",  VIOLET,    "#7c3aed",  self.root.destroy)
+
+        # Centrer la fenêtre maintenant que tous les widgets sont créés
+        r.update_idletasks()
+        w = max(380, r.winfo_reqwidth())
+        h = max(300, r.winfo_reqheight())
+        sw = r.winfo_screenwidth()
+        sh = r.winfo_screenheight()
+        r.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
     def set_vlc_status(self, status: str, text: str):
         color = STATUS_COLORS.get(status, IDLE_COLOR)
