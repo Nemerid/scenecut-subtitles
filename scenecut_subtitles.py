@@ -255,18 +255,19 @@ class BridgeGUI:
                  font=("Helvetica", 9), justify="left", anchor="w",
                  wraplength=340).pack(fill="x", pady=(4, 0))
 
-        # Bouton quitter
+        # Bouton quitter — tk.Label pour forcer les couleurs (tk.Button ignore bg sur macOS)
         btn_frame = tk.Frame(r, bg=DARK_BG)
         btn_frame.pack(side="bottom", pady=16)
 
-        quit_btn = tk.Button(
-            btn_frame, text="  Quitter  ", command=self.root.destroy,
+        quit_btn = tk.Label(
+            btn_frame, text="  Quitter  ",
             bg=VIOLET, fg="white", font=("Helvetica", 10, "bold"),
-            relief="flat", padx=20, pady=7, cursor="hand2",
-            activebackground="#7c3aed", activeforeground="white",
-            borderwidth=0,
+            padx=20, pady=7, cursor="hand2",
         )
         quit_btn.pack()
+        quit_btn.bind("<Button-1>", lambda e: self.root.destroy())
+        quit_btn.bind("<Enter>",    lambda e: quit_btn.configure(bg="#7c3aed"))
+        quit_btn.bind("<Leave>",    lambda e: quit_btn.configure(bg=VIOLET))
 
     def set_vlc_status(self, status: str, text: str):
         color = STATUS_COLORS.get(status, IDLE_COLOR)
